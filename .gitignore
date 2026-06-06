@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.venv
+
+static_root/
+media/
+db.sqlite3
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

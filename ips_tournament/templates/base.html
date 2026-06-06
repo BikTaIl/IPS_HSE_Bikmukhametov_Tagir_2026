@@ -1,0 +1,60 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Турнир матбоев{% endblock %}</title>
+    <style>
+        /* Глобальные стили для всего сайта */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; padding: 0; color: #333; }
+        
+        /* Стили навигационной панели (шапки) */
+        .navbar { background-color: #0056b3; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
+        .nav-links { display: flex; gap: 20px; }
+        .nav-links a { color: white; text-decoration: none; font-weight: 500; transition: opacity 0.2s; }
+        .nav-links a:hover { opacity: 0.8; }
+        
+        .auth-block { display: flex; align-items: center; gap: 15px; font-size: 0.9em; }
+        .logout-btn { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none;}
+        .logout-btn:hover { background: #c82333; }
+        
+        .main-content { padding: 30px; max-width: 1000px; margin: 0 auto; }
+        .header-logo { background-color: white; border-radius: 8px; padding: 4px; width: 45px; height: 45px; object-fit: contain; box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-left: 10px; }
+    </style>
+    {% block extra_head %}{% endblock %} 
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-links">
+            <a href="{% url 'info_page' %}">Общая информация</a>
+            <a href="{% url 'broadcast' %}">Трансляция</a>
+        
+            {% if user.is_authenticated and user.role in 'ADMIN,SUPERADMIN' or user.is_superuser %}
+                <a href="{% url 'constructor_page' %}">Конструктор</a>
+                <a href="{% url 'admin_panel' %}">Админка</a>
+            {% endif %}
+        </div>
+        
+        <div class="auth-block">
+            {% if user.is_authenticated %}
+                <span>Привет, {{ user.username }}!</span>
+                <form action="{% url 'logout' %}" method="post" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="logout-btn">Выйти</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}" style="color: white; text-decoration: underline;">Войти</a>
+            {% endif %}
+            
+            <img src="{% static 'img/kmo.png.webp' %}" alt="Логотип КМЦ" class="header-logo">
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+</body>
+</html>

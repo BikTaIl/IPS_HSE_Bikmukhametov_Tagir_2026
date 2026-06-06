@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Стили для красивых подсказок */
+    .tooltip-container { position: relative; display: inline-block; cursor: help; }
+    .tooltip-text {
+        visibility: hidden; width: 280px; background-color: #333; color: #fff;
+        border-radius: 6px; padding: 10px; position: absolute; z-index: 1001;
+        top: 125%; left: 0; opacity: 0; transition: opacity 0.3s;
+        font-size: 12px; line-height: 1.4; box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+    .help-icon { background: #eee; border-radius: 50%; width: 18px; height: 18px; 
+                 display: inline-flex; align-items: center; justify-content: center; 
+                 font-size: 12px; font-weight: bold; color: #666; margin-left: 5px; }
+</style>
+
+<div class="container" style="padding: 20px;">
+    <h2>🛠️ Конструктор турниров (Монте-Карло симуляция)</h2>
+    
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+        <div style="flex: 1; background: #f8f9fa; padding: 20px; border-radius: 8px; min-width: 320px;">
+            
+            <h3>1. Исходные данные (CSV)</h3>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: inline-flex; align-items: center;">
+                    Команды:
+                    <div class="tooltip-container" style="margin-left: 5px;">
+                        <span class="help-icon">?</span>
+                        <div class="tooltip-text" style="width: 220px;">
+                            <b style="color: #ffc107;">Формат колонок CSV:</b><br>
+                            1. Рабочее название<br>
+                            2. Детское название<br>
+                            3. Класс<br>
+                            4. Лига
+                        </div>
+                    </div>
+                </label> 
+                <input type="file" id="cons-teams" accept=".csv" style="display: block; margin-top: 5px;">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: inline-flex; align-items: center;">
+                    Олимпиада:
+                    <div class="tooltip-container" style="margin-left: 5px;">
+                        <span class="help-icon">?</span>
+                        <div class="tooltip-text" style="width: 220px;">
+                            <b style="color: #ffc107;">Формат колонок CSV:</b><br>
+                            1. Класс<br>
+                            2. Лига<br>
+                            3. Команда<br>
+                            4. Плюсы<br>
+                            5. Минусы
+                        </div>
+                    </div>
+                </label>
+                <input type="file" id="cons-oly" accept=".csv" style="display: block; margin-top: 5px;">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: inline-flex; align-items: center;">
+                    Прошедшие бои (необяз.):
+                    <div class="tooltip-container" style="margin-left: 5px;">
+                        <span class="help-icon">?</span>
+                        <div class="tooltip-text" style="width: 250px;">
+                            <b style="color: #ffc107;">Формат колонок CSV:</b><br>
+                            1. Класс (напр. 7)<br>
+                            2. Лига<br>
+                            3. Тур (напр. 1)<br>
+                            4. Команда 1<br>
+                            5. Баллы 1 (напр. 45.5)<br>
+                            6. Команда 2<br>
+                            7. Баллы 2<br><br>
+                            <i style="color: #17a2b8;">Если файл не выбран, симуляция начнется с 1-го тура.</i>
+                        </div>
+                    </div>
+                </label>
+                <input type="file" id="cons-matches" accept=".csv" style="display: block; margin-top: 5px;">
+            </div>
+
+            <h3>2. Параметры симуляции</h3>
+            <div style="margin-bottom: 10px;">
+                <label>Тип турнира:</label>
+                <select id="cons-type" style="width: 100%; padding: 5px; margin-top: 5px;">
+                    </select>
+            </div>
+
+            <div style="margin-bottom: 10px; background: #e2eefd; padding: 10px; border-radius: 6px; border-left: 4px solid #0d6efd;">
+                <label style="display: inline-flex; align-items: center; font-weight: bold; color: #084298;">
+                    Количество туров:
+                    <div class="tooltip-container" style="margin-left: 5px;">
+                        <span class="help-icon" style="background: #fff; color: #0d6efd;">?</span>
+                        <div class="tooltip-text" style="width: 250px; font-weight: normal; color: white;">
+                            Укажите, сколько всего туров должно быть сыграно. Симуляция остановится по достижении этого числа.
+                        </div>
+                    </div>
+                </label>
+                <input type="number" id="cons-tours" value="" min="1" max="20" style="width: 100%; padding: 5px; margin-top: 5px; border: 1px solid #b6d4fe; border-radius: 4px;">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label>Количество симуляций:</label>
+                <input type="number" id="cons-sims" value="10" min="1" max="100" style="width: 100%; padding: 5px; margin-top: 5px;">
+            </div>
+
+            <h3>3. Логика победы (Python)</h3>
+            <p style="font-size: 12px; color: gray; margin-bottom: 5px;">Доступны: m (плюсы 1), n (минусы 1), p (плюсы 2), k (минусы 2)</p>
+            <textarea id="cons-code" rows="8" style="width: 100%; font-family: monospace; resize: vertical; padding: 10px; border-radius: 4px; border: 1px solid #ccc;">
+if m > p:
+    return 0.6, 0.2, 0.2
+elif m == p:
+    return 0.3, 0.4, 0.3
+else:
+    return 0.2, 0.2, 0.6
+            </textarea>
+            
+            <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="admin-btn btn-green" onclick="runSimulation()">🚀 Запустить симуляцию</button>
+                <button class="admin-btn btn-blue" onclick="generateNextPairing()">📅 Составить расписание</button>
+            </div>
+        </div>
+
+        <div style="flex: 2; min-width: 400px;">
+            <h3>📊 Результаты симуляции</h3>
+            <div id="sim-warnings" style="color: #d9534f; font-weight: bold; margin-bottom: 10px;"></div>
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f1f1f1;">
+                        <th style="padding: 10px; border: 1px solid #ddd;">Лига</th>
+                        <th style="padding: 10px; border: 1px solid #ddd;">Команда</th>
+                        <th style="padding: 10px; border: 1px solid #ddd;">Среднее место</th>
+                        <th style="padding: 10px; border: 1px solid #ddd;">Средние очки</th>
+                    </tr>
+                </thead>
+                <tbody id="sim-results-tbody">
+                    <tr><td colspan="4" style="text-align: center; padding: 20px;">Запустите симуляцию для отображения данных</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Вспомогательная функция для CSRF-токена
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Запрос к API для подсчета количества туров
+    async function fetchDefaultTours() {
+        const teamsFile = document.getElementById('cons-teams').files[0];
+        const typeSelect = document.getElementById('cons-type');
+        
+        if (!teamsFile) return;
+
+        const formData = new FormData();
+        formData.append('teams', teamsFile);
+        formData.append('tournament_id', typeSelect.value);
+
+        try {
+            const response = await fetch('/api/constructor/calc-tours/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.tours !== undefined) {
+                    const toursInput = document.getElementById('cons-tours');
+                    toursInput.value = data.tours > 0 ? data.tours : '';
+                    
+                    toursInput.style.backgroundColor = '#e8f4f8';
+                    setTimeout(() => toursInput.style.backgroundColor = '', 500);
+                }
+            }
+        } catch (e) {
+            console.error("Ошибка при расчете туров:", e);
+        }
+    }
+
+    // Загрузка типов турниров при старте
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch('/api/constructor/tournaments/');
+            const tournaments = await response.json();
+            const select = document.getElementById('cons-type');
+            tournaments.forEach(t => {
+                let option = document.createElement('option');
+                option.value = t.id;
+                option.textContent = t.name;
+                select.appendChild(option);
+            });
+        } catch (e) {
+            console.error("Не удалось загрузить список турниров");
+        }
+
+        // Слушатели для автоматического расчета туров
+        document.getElementById('cons-teams').addEventListener('change', fetchDefaultTours);
+        document.getElementById('cons-type').addEventListener('change', fetchDefaultTours);
+    });
+
+    // Сборка данных формы
+    function getConstructorFormData() {
+        const teamsFile = document.getElementById('cons-teams').files[0];
+        const olyFile = document.getElementById('cons-oly').files[0];
+        const matchesFile = document.getElementById('cons-matches').files[0];
+        
+        if (!teamsFile || !olyFile) {
+            alert("Пожалуйста, загрузите хотя бы файлы команд и олимпиады!");
+            return null;
+        }
+
+        const formData = new FormData();
+        formData.append('teams', teamsFile);
+        formData.append('olympiad', olyFile);
+        if (matchesFile) {
+            formData.append('matches', matchesFile);
+        }
+        
+        formData.append('tournament_id', document.getElementById('cons-type').value);
+        formData.append('max_tours', document.getElementById('cons-tours').value);
+        formData.append('sim_count', document.getElementById('cons-sims').value);
+        formData.append('code', document.getElementById('cons-code').value);
+        
+        return formData;
+    }
+
+    // Запуск симуляции
+    async function runSimulation() {
+        const formData = getConstructorFormData();
+        if (!formData) return;
+
+        const tbody = document.getElementById('sim-results-tbody');
+        const warnings = document.getElementById('sim-warnings');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">⏳ Выполняется симуляция...</td></tr>';
+        warnings.innerHTML = '';
+
+        const response = await fetch('/api/constructor/simulate/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            if (result.ignored_matches > 0) {
+                warnings.innerHTML = `⚠️ Проигнорировано боев без счета: ${result.ignored_matches}`;
+            }
+            
+            tbody.innerHTML = '';
+            result.results.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 10px; border: 1px solid #ddd;">${row.league}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;"><b>${row.team}</b></td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${row.avg_place}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${row.avg_pts}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red; padding: 20px;">Ошибка симуляции</td></tr>';
+            alert(`Ошибка: ${result.error}`);
+        }
+    }
+
+    // Генерация расписания
+    async function generateNextPairing() {
+        const formData = getConstructorFormData();
+        if (!formData) return;
+
+        const response = await fetch('/api/constructor/pairing/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'next_tour.csv';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } else {
+            const errorText = await response.text();
+            alert(`Ошибка генерации: ${errorText}`);
+        }
+    }
+</script>
+{% endblock %}

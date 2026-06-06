@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}Информация о турнире{% endblock %}
+
+{% block extra_head %}
+    <style>
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eaeaea; padding-bottom: 15px; margin-bottom: 20px; }
+        .admin-panel { background-color: #eef7ff; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .faq-item { background: #fafafa; border: 1px solid #e0e0e0; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+        .faq-question { font-weight: bold; margin-bottom: 10px; font-size: 1.1em; color: #222; }
+        .faq-answer { margin-bottom: 10px; color: #555; }
+        footer { margin-top: 40px; text-align: center; color: #888; font-size: 0.9em; padding-top: 20px; border-top: 1px solid #eaeaea; }
+        
+        .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; color: #fff; background-color: #007bff; transition: background 0.3s; }
+        .btn:hover { background-color: #0056b3; }
+        .btn-danger { background-color: #dc3545; padding: 5px 10px; font-size: 0.9em; }
+        .btn-danger:hover { background-color: #a71d2a; }
+        input[type="text"], textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        a.nav-link { text-decoration: none; color: #007bff; font-weight: bold; }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <div class="header">
+            <h1>Информация о турнире {% if tournament %}№{{ tournament.tournament_number }}{% endif %}</h1>
+        </div>
+
+        {% if tournament %}
+            <section>
+                <h2>Официальные документы</h2>
+                <ul>
+                    <li style="margin-bottom: 10px;">
+                        <strong>Свод правил:</strong> 
+                        {% if tournament.rules_file %}
+                            <a href="{{ tournament.rules_file.url }}" target="_blank">Скачать / Посмотреть</a>
+                        {% else %}
+                            <span style="color: #999;">Файл не загружен</span>
+                        {% endif %}
+                    </li>
+                    <li style="margin-bottom: 10px;">
+                        <strong>Информационное письмо:</strong>
+                        {% if tournament.info_letter_file %}
+                            <a href="{{ tournament.info_letter_file.url }}" target="_blank">Скачать / Посмотреть</a>
+                        {% else %}
+                            <span style="color: #999;">Файл не загружен</span>
+                        {% endif %}
+                    </li>
+                </ul>
+
+                {% if request.user.is_superuser or request.user.role == 'ADMIN' or request.user.role == 'SUPERADMIN' %}
+                <div class="admin-panel">
+                    <h3 style="margin-top: 0;">Управление документами</h3>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px;">Обновить свод правил:</label>
+                        <input type="file" id="rulesFile">
+                        <button class="btn" onclick="uploadDoc('rules')">Загрузить</button>
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px;">Обновить информационное письмо:</label>
+                        <input type="file" id="infoLetterFile">
+                        <button class="btn" onclick="uploadDoc('info_letter')">Загрузить</button>
+                    </div>
+                </div>
+                {% endif %}
+            </section>
+
+            <section style="margin-top: 40px;">
+                <h2>Ответы на частые вопросы</h2>
+                
+                {% if faqs %}
+                    {% for faq in faqs %}
+                        <div class="faq-item">
+                            <div class="faq-question">В: {{ faq.question }}</div>
+                            <div class="faq-answer">О: {{ faq.answer }}</div>
+                            {% if request.user.is_superuser or request.user.role == 'ADMIN' or request.user.role == 'SUPERADMIN' %}
+                                <button class="btn btn-danger" onclick="deleteFaq({{ faq.id }})">Удалить</button>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>Список частых вопросов пока пуст.</p>
+                {% endif %}
+
+                {% if request.user.is_superuser or request.user.role == 'ADMIN' or request.user.role == 'SUPERADMIN' %}
+                <div class="admin-panel">
+                    <h3 style="margin-top: 0;">Добавить новый вопрос</h3>
+                    <input type="text" id="faqQuestion" placeholder="Текст вопроса...">
+                    <textarea id="faqAnswer" rows="3" placeholder="Подробный ответ..."></textarea>
+                    <button class="btn" onclick="addFaq()">Опубликовать вопрос</button>
+                </div>
+                {% endif %}
+            </section>
+        {% else %}
+            <p><strong>Турнир еще не создан.</strong> Организаторам необходимо создать турнир в панели администратора.</p>
+        {% endif %}
+
+        <footer>
+            Юридическое лицо: АНО «Казанский Математический Центр» | Контакты: info@anokmc.ru
+        </footer>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        async function basePostRequest(url, bodyData, isFormData = false) {
+            const options = { method: 'POST', headers: { 'X-CSRFToken': csrftoken }, body: bodyData };
+            if (!isFormData) options.headers['Content-Type'] = 'application/json';
+            
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                if (data.status === 'success') location.reload();
+                else alert(data.error || 'Произошла ошибка');
+            } catch (err) { alert('Ошибка сети: ' + err); }
+        }
+
+        function uploadDoc(docType) {
+            const fileInput = document.getElementById(docType === 'rules' ? 'rulesFile' : 'infoLetterFile');
+            if (!fileInput.files.length) return alert('Пожалуйста, выберите файл перед загрузкой.');
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            basePostRequest(`/api/docs/upload/${docType}/`, formData, true);
+        }
+
+        function addFaq() {
+            const question = document.getElementById('faqQuestion').value.trim();
+            const answer = document.getElementById('faqAnswer').value.trim();
+            if (!question || !answer) return alert('Оба поля обязательны для заполнения!');
+            
+            basePostRequest('/api/faq/add/', JSON.stringify({ question, answer }));
+        }
+
+        function deleteFaq(faqId) {
+            if (confirm('Вы уверены, что хотите удалить этот вопрос?')) {
+                basePostRequest('/api/faq/delete/', JSON.stringify({ faq_id: faqId }));
+            }
+        }
+    </script>
+{% endblock %}

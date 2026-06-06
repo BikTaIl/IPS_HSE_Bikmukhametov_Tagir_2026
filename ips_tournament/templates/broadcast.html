@@ -1,0 +1,1069 @@
+{% extends 'base.html' %}
+
+{% block title %}Трансляция турнира{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Основная сетка страницы (Сайдбар слева, контент справа) */
+    .dashboard-layout { display: flex; min-height: 80vh; margin-top: 20px; gap: 20px; }
+    
+    /* Сайдбар */
+    .sidebar { width: 250px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: fit-content; }
+    .sidebar button { display: block; width: 100%; text-align: left; padding: 10px; margin-bottom: 5px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+    .sidebar button:hover, .sidebar button.active { background: #0056b3; color: white; border-color: #0056b3; }
+    
+    /* Основной контент */
+    .main-content-area { flex-grow: 1; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    
+    /* Шапка турнира */
+    .tournament-header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+    .tournament-header h1 { margin: 0; font-size: 28px; color: #222; }
+    .tournament-header .sub-header { font-size: 14px; color: #777; margin: 5px 0 15px 0; }
+    .tournament-header .description { font-size: 16px; color: #444; font-style: italic; }
+
+    /* Внутренние вкладки (Сводка, Расписание, Олимпиада) */
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    .tabs button { padding: 8px 16px; background: none; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+    .tabs button.active { background: #0056b3; color: white; border-color: #0056b3; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Панель администратора на странице */
+    .admin-controls { margin-top: 30px; padding: 20px; background: #e9ecef; border-radius: 8px; border-left: 5px solid #ffc107; }
+    .admin-controls h3 { margin-top: 0; color: #333; }
+    .admin-btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; margin-bottom: 10px; color: white; }
+    .btn-blue { background: #007bff; } .btn-blue:hover { background: #0056b3; }
+    .btn-green { background: #28a745; } .btn-green:hover { background: #218838; }
+    .btn-red { background: #dc3545; } .btn-red:hover { background: #c82333; }
+
+    /* Стили Модальных окон (Всплывашки) */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: white; padding: 30px; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; }
+    .close-modal { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #888; }
+    .close-modal:hover { color: black; }
+    
+    /* Базовые таблицы */
+    table.data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    table.data-table th, table.data-table td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+    table.data-table th { background: #f8f9fa; position: sticky; top: 0; z-index: 10; } /* Добавлено залипание шапки */
+
+    /* Стили для шахматки */
+    .chess-table { width: 100%; border-collapse: collapse; border: 3px solid black; background: white; }
+    .chess-table th, .chess-table td { border: 1px solid black; text-align: center; padding: 8px 4px; font-size: 15px; }
+    .chess-table th { font-weight: bold; background: #f8f9fa; }
+    .chess-table td.team-name, .chess-table th.team-name-header { text-align: left; padding-left: 10px; width: 35%; font-weight: bold; }
+    .chess-table td.num-col { width: 30px; font-weight: bold; background: #f8f9fa; }
+    .black-cell { background-color: #222 !important; }
+    .chess-table th.points-col, .chess-table td.points-col { font-weight: bold; width: 60px; background: #f8f9fa; }
+    .chess-table thead { border-bottom: 3px solid black; }
+    .league-title { text-align: center; font-weight: bold; font-size: 18px; margin-top: 30px; margin-bottom: 10px; }
+    .tooltip-container {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .tooltip-text {
+        visibility: hidden;
+        width: 320px;
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 12px;
+        position: absolute;
+        z-index: 1001;
+        
+        top: 125%;
+        left: 0;
+        transform: none;
+        
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 13px;
+        line-height: 1.5;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        pointer-events: none; 
+    }
+
+    .tooltip-text::after {
+        content: "";
+        position: absolute;
+        bottom: 100%;
+        left: 20px;
+        margin-left: -6px;
+        border-width: 6px;
+        border-style: solid;
+        border-color: transparent transparent #333 transparent;
+    }
+
+    .tooltip-container:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+    
+    <aside class="sidebar">
+        <h3 style="margin-top:0;">Навигация</h3>
+        <div id="class-buttons">
+            {% if classes %}
+                {% for c in classes %}
+                    <button onclick="loadClassData({{ c }}, this)">{{ c }} Класс</button>
+                {% endfor %}
+            {% else %}
+                <p style="font-size: 0.9em; color: gray;">Нет добавленных команд</p>
+            {% endif %}
+        </div>
+    </aside>
+
+    <main class="main-content-area">
+        
+        <div class="tournament-header">
+            {% if tournament %}
+                <h1>Турнир "Математическое открытие" (#{{ tournament.tournament_number }})</h1>
+                <div class="sub-header">Даты проведения: {{ tournament.start_date|date:"d.m.Y" }} — {{ tournament.end_date|date:"d.m.Y" }}</div>
+                <div class="description">Турнир объединяет множество городов, проводится много лет и направлен на популяризацию математики.</div>
+            {% else %}
+                <h1>Текущий турнир не задан</h1>
+                <div class="description">Суперадминистратору необходимо создать новый турнир.</div>
+            {% endif %}
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('summary')">Сводка (Шахматка)</button>
+            <button class="tab-btn" onclick="switchTab('schedule')">Расписание боев</button>
+            <button class="tab-btn" onclick="switchTab('olympiad')">Командная олимпиада</button>
+        </div>
+
+        <div id="tab-summary" class="tab-content active"></div>
+        <div id="tab-schedule" class="tab-content"></div>
+        <div id="tab-olympiad" class="tab-content"></div>
+
+        {% if user.role in 'ADMIN,SUPERADMIN,EDITOR' or user.is_superuser %}
+        <div class="admin-controls">
+            <h3>Инструменты организатора</h3>
+            
+            {% if user.role in 'ADMIN,SUPERADMIN' or user.is_superuser %}
+            <button class="admin-btn btn-blue" onclick="openModal('modal-teams'); loadTeams();">📝 Редактировать команды</button>
+            <button class="admin-btn btn-blue" onclick="openModal('modal-olympiad')">🏆 Добавить рез-ты олимпиады</button>
+            <button class="admin-btn btn-blue" onclick="openModal('modal-schedule'); loadScheduledFights();">📅 Добавить место проведения боя</button>
+            {% endif %}
+
+            <button class="admin-btn btn-green" onclick="openModal('modal-matches'); loadFights();">⚔️ Внести результаты боя</button>
+            
+            {% if user.is_superuser or user.role == 'SUPERADMIN' %}
+                <hr style="border:0; border-top:1px solid #ccc; margin: 15px 0;">
+                <button class="admin-btn btn-red" onclick="openModal('modal-new-tournament')">⚠️ Создать НОВЫЙ турнир</button>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </main>
+</div>
+
+<div id="modal-teams" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('modal-teams')">&times;</span>
+        <h2>Управление командами</h2>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="team-work" placeholder="Рабочее название">
+            <input type="text" id="team-child" placeholder="Детское название">
+            <input type="number" id="team-class" placeholder="Класс (напр. 7)" style="width: 100px;">
+            <input type="text" id="team-league" placeholder="Лига (напр. Высшая)">
+            <button id="btn-add-team" class="admin-btn btn-green" style="margin:0;" onclick="submitTeamForm()">Добавить</button>
+
+            <input type="file" id="csv-teams" style="display:none;" accept=".csv" onchange="uploadCsv(this)">
+            
+            <div class="tooltip-container">
+                <button class="admin-btn btn-blue" style="margin:0;" onclick="document.getElementById('csv-teams').click()">📥 Загрузить CSV</button>
+                <div class="tooltip-text" style="width: 250px;">
+                    <b style="color: #ffc107;">Формат колонок CSV:</b><br>
+                    1. Рабочее название (напр. ФМЛ 239-1)<br>
+                    2. Детское название (напр. Еноты)<br>
+                    3. Класс (напр. 7)<br>
+                    4. Лига (напр. Высшая)
+                </div>
+            </div>
+            <button class="admin-btn" style="margin:0; background: #6c757d;" onclick="window.location.href='/api/export/teams/'">📤 Выгрузить</button>
+        </div>
+
+        <table class="data-table">
+            <thead><tr><th>Рабочее назв.</th><th>Детское назв.</th><th>Класс</th><th>Лига</th><th>Действия</th></tr></thead>
+            <tbody id="teams-list-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal-schedule" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('modal-schedule')">&times;</span>
+        <h2>Добавить место проведения боя</h2>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                <input type="number" id="sch-class" placeholder="Класс" style="width: 80px;" onchange="updateSchLeagues()">
+                <select id="sch-league" style="width: 150px;" onchange="updateSchTeams()"><option value="">-- Лига --</option></select>
+                <input type="number" id="sch-tour" placeholder="Тур" style="width: 80px;">
+                <input type="date" id="sch-date" style="width: 130px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                <select id="sch-team1" style="width: 180px;"><option value="">-- Команда 1 --</option></select>
+                <span style="line-height: 2;">VS</span>
+                <select id="sch-team2" style="width: 180px;"><option value="">-- Команда 2 --</option></select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                <input type="text" id="sch-judge1" placeholder="Первый судья" style="width: 180px;">
+                <input type="text" id="sch-judge2" placeholder="Второй судья (необяз.)" style="width: 180px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                <input type="text" id="sch-place" placeholder="Место боя (ауд.)" style="width: 140px;">
+                <input type="time" id="sch-time" style="width: 100px;" title="Время боя">
+                <input type="text" id="sch-sol-place" placeholder="Место разбора" style="width: 140px;">
+                <input type="time" id="sch-sol-time" style="width: 100px;" title="Время разбора">
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <button class="admin-btn btn-green" style="margin: 0;" onclick="submitSchedule()">Запланировать бой</button>
+                
+                <input type="file" id="csv-schedule" style="display:none;" accept=".csv" onchange="uploadScheduleCsv(this)">
+                
+                <div class="tooltip-container">
+                    <button class="admin-btn btn-blue" style="margin: 0;" onclick="document.getElementById('csv-schedule').click()">📥 Загрузить из CSV</button>
+                    <div class="tooltip-text">
+                        <b style="color: #ffc107;">Формат колонок CSV (строго по порядку):</b><br>
+                        1. Класс (напр. 7)<br>
+                        2. Лига (напр. Высшая)<br>
+                        3. Тур (напр. 1)<br>
+                        4. Дата (ГГГГ-ММ-ДД)<br>
+                        5. Команда 1<br>
+                        6. Команда 2<br>
+                        7. Судья 1<br>
+                        8. Судья 2<br>
+                        9. Место боя<br>
+                        10. Время боя (ЧЧ:ММ)<br>
+                        11. Место разбора<br>
+                        12. Время разбора
+                    </div>
+                </div>
+                <button class="admin-btn" style="margin:0; background: #6c757d;" onclick="window.location.href='/api/export/schedule/'">📤 Выгрузить</button>
+            </div>
+        </div>
+
+        <table class="data-table">
+            <thead><tr><th>Класс</th><th>Тур</th><th>Бой</th><th>Время и Место</th><th>Действия</th></tr></thead>
+            <tbody id="scheduled-fights-tbody"></tbody>
+        </table>
+        
+    </div> </div>
+
+<div id="modal-matches" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('modal-matches')">&times;</span>
+        <h2>Внесение результатов боя</h2>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <input type="number" id="fight-class" placeholder="Класс (напр. 7)" style="width: 100px;" onchange="updateFightLeagues()">
+                <select id="fight-league" style="width: 150px;" onchange="updateFightTeams()">
+                    <option value="">-- Лига --</option>
+                </select>
+                <input type="number" id="fight-tour" placeholder="Тур" style="width: 80px;">
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <select id="fight-team1"><option value="">-- Команда 1 --</option></select>
+                <input type="number" id="fight-points1" placeholder="Очки 1" style="width: 80px;">
+                <span>VS</span>
+                <input type="number" id="fight-points2" placeholder="Очки 2" style="width: 80px;">
+                <select id="fight-team2"><option value="">-- Команда 2 --</option></select>
+                <button class="admin-btn btn-green" style="margin:0;" onclick="submitFightResult()">Сохранить счет</button>
+            </div>
+            <input type="file" id="csv-matches" style="display:none;" accept=".csv" onchange="uploadMatchesCsv(this)">
+            <div class="tooltip-container">
+            <button class="admin-btn btn-blue" style="margin:0;" onclick="document.getElementById('csv-matches').click()">📥 Загрузить CSV</button>
+            <div class="tooltip-text" style="width: 250px;">
+                <b style="color: #ffc107;">Формат колонок CSV:</b><br>
+                1. Класс (напр. 7)<br>
+                2. Лига<br>
+                3. Тур (напр. 1)<br>
+                4. Команда 1 (детское назв.)<br>
+                5. Баллы 1 (напр. 45.5)<br>
+                6. Команда 2<br>
+                7. Баллы 2
+            </div>
+</div>
+
+<button class="admin-btn" style="margin:0; background: #6c757d;" onclick="window.location.href='/api/export/matches/'">📤 Выгрузить</button>
+        </div>
+
+        <table class="data-table">
+            <thead><tr><th>Класс</th><th>Тур</th><th>Бой</th><th>Счет</th><th>Действия</th></tr></thead>
+            <tbody id="fights-list-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal-olympiad" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('modal-olympiad')">&times;</span>
+        <h2>Результаты Командной Олимпиады</h2>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <input type="number" id="oly-class" placeholder="Класс" style="width: 80px;" onchange="updateOlyLeagues()">
+                <select id="oly-league" style="width: 150px;" onchange="updateOlyTeams()"><option value="">-- Лига --</option></select>
+                <select id="oly-team" style="width: 180px;"><option value="">-- Команда --</option></select>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="number" id="oly-plus" placeholder="Плюсы (+)" style="width: 100px;">
+                <input type="number" id="oly-minus" placeholder="Минусы (-)" style="width: 100px;">
+                <button class="admin-btn btn-green" style="margin:0;" onclick="submitOlympiad()">Сохранить</button>
+
+                <input type="file" id="csv-olympiad" style="display:none;" accept=".csv" onchange="uploadOlympiadCsv(this)">
+                
+                <div class="tooltip-container">
+                    <button class="admin-btn btn-blue" style="margin:0;" onclick="document.getElementById('csv-olympiad').click()">📥 Загрузить CSV</button>
+                    <div class="tooltip-text" style="width: 280px;">
+                        <b style="color: #ffc107;">Формат колонок CSV:</b><br>
+                        1. Класс (напр. 7)<br>
+                        2. Лига (напр. Высшая или пусто)<br>
+                        3. Команда (детское название)<br>
+                        4. Плюсы (количество)<br>
+                        5. Минусы (количество)
+                    </div>
+                </div>
+                <button class="admin-btn" style="margin:0; background: #6c757d;" onclick="window.location.href='/api/export/olympiad/'">📤 Выгрузить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-new-tournament" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px; border-top: 5px solid #dc3545;">
+        <span class="close-modal" onclick="closeModal('modal-new-tournament')">&times;</span>
+        <h2 style="color: #dc3545;">Внимание! Создание нового турнира</h2>
+        <p><b>Все данные текущего турнира будут стерты.</b> Это действие нельзя отменить.</p>
+        
+        <label>Пароль суперадмина:</label>
+        <input type="password" id="new-tour-pwd" style="width: 100%; padding: 8px; margin-bottom: 15px;" placeholder="Введите пароль">
+        
+        <hr style="margin-bottom: 15px;">
+        <h3>Данные нового турнира</h3>
+        <input type="number" id="new-tour-num" placeholder="Номер турнира (число, напр. 19)" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        
+        <label>Дата начала:</label>
+        <input type="date" id="new-tour-start" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        <label>Дата конца:</label>
+        <input type="date" id="new-tour-end" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+        
+        <button class="admin-btn btn-red" style="width: 100%;" onclick="createNewTournament()">Подтвердить создание турнира</button>
+    </div>
+</div>
+
+
+<script>
+    // --- БАЗОВЫЙ ИНТЕРФЕЙС ---
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    function openModal(modalId) {
+        document.getElementById(modalId).style.display = 'flex';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal-overlay')) {
+            event.target.style.display = 'none';
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Загрузка всех данных класса (Шахматка, Олимпиада, Расписание)
+    async function loadClassData(schoolClass, btnElement) {
+        if (btnElement) {
+            document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+
+        // Загружаем вкладки Олимпиады и Расписания
+        loadOlympiadTable(schoolClass); 
+        loadScheduleTable(schoolClass);
+
+        // Загружаем Шахматку
+        const response = await fetch(`/api/summary/?school_class=${schoolClass}`);
+        const data = await response.json();
+        const summaryContainer = document.getElementById('tab-summary');
+        summaryContainer.innerHTML = ''; 
+
+        if (data.leagues && data.leagues.length > 0) {
+            data.leagues.forEach(league => {
+                const numTeams = league.teams.length;
+                let html = `<div class="league-title">${league.name}</div>`;
+                html += `<table class="chess-table" style="margin-bottom: 40px;"><thead><tr>`;
+                html += `<th colspan="2" class="team-name-header">Команда</th>`;
+                
+                for(let i = 1; i <= numTeams; i++) {
+                    html += `<th>${i}</th>`;
+                }
+                html += `<th class="points-col">Очки</th></tr></thead><tbody>`;
+                
+                league.teams.forEach(rowTeam => {
+                    html += `<tr>`;
+                    html += `<td class="num-col">${rowTeam.num}</td>`;
+                    html += `<td class="team-name">${rowTeam.name}</td>`;
+                    
+                    league.teams.forEach(colTeam => {
+                        if (rowTeam.id === colTeam.id) {
+                            html += `<td class="black-cell"></td>`;
+                        } else {
+                            let match = league.matches.find(m => m.t1_id === rowTeam.id && m.t2_id === colTeam.id);
+                            let reverseMatch = league.matches.find(m => m.t2_id === rowTeam.id && m.t1_id === colTeam.id);
+                            
+                            if (match) {
+                                html += `<td>${match.score1}:${match.score2}</td>`;
+                            } else if (reverseMatch) {
+                                html += `<td>${reverseMatch.score2}:${reverseMatch.score1}</td>`;
+                            } else {
+                                html += `<td></td>`;
+                            }
+                        }
+                    });
+                    
+                    html += `<td class="points-col">${rowTeam.points}</td>`;
+                    html += `</tr>`;
+                });
+                
+                html += `</tbody></table>`;
+                summaryContainer.innerHTML += html;
+            });
+        } else {
+            summaryContainer.innerHTML = '<h3>В этом классе пока нет команд или лиг</h3>';
+        }
+    }
+
+
+    // --- ТУРНИРЫ И КОМАНДЫ ---
+
+    async function createNewTournament() {
+        const pwd = document.getElementById('new-tour-pwd').value;
+        const num = document.getElementById('new-tour-num').value;
+        const start = document.getElementById('new-tour-start').value;
+        const end = document.getElementById('new-tour-end').value;
+
+        if(!pwd || !num || !start || !end) return alert('Заполните все поля!');
+
+        const response = await fetch('/api/tournament/create/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ password: pwd, number: num, start_date: start, end_date: end })
+        });
+        
+        const result = await response.json();
+        if(response.ok) {
+            alert(result.message);
+            location.reload(); 
+        } else alert(`Ошибка: ${result.error}`);
+    }
+
+    let currentTeamsList = []; 
+    let editingTeamId = null; 
+
+    function startEditTeam(teamId) {
+        const team = currentTeamsList.find(t => t.id === teamId);
+        if (!team) return;
+
+        document.getElementById('team-work').value = team.work_name;
+        document.getElementById('team-child').value = team.child_name;
+        document.getElementById('team-class').value = team.school_class;
+        document.getElementById('team-league').value = team.league !== '—' ? team.league : '';
+        
+        editingTeamId = teamId;
+        const btn = document.getElementById('btn-add-team');
+        btn.innerText = 'Сохранить изменения';
+        btn.classList.replace('btn-green', 'btn-blue');
+    }
+
+    async function submitTeamForm() {
+        const data = {
+            work_name: document.getElementById('team-work').value,
+            child_name: document.getElementById('team-child').value,
+            school_class: document.getElementById('team-class').value,
+            league: document.getElementById('team-league').value
+        };
+
+        if(!data.work_name || !data.child_name || !data.school_class) return alert('Заполните основные поля!');
+
+        let url = '/api/teams/add/';
+        if (editingTeamId) {
+            url = '/api/teams/edit/';
+            data.team_id = editingTeamId; 
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(data)
+        });
+        
+        if(response.ok) {
+            document.getElementById('team-work').value = '';
+            document.getElementById('team-child').value = '';
+            document.getElementById('team-class').value = '';
+            document.getElementById('team-league').value = '';
+            editingTeamId = null;
+            
+            const btn = document.getElementById('btn-add-team');
+            btn.innerText = 'Добавить';
+            btn.classList.replace('btn-blue', 'btn-green');
+            
+            loadTeams(); 
+        } else {
+            const result = await response.json();
+            alert(`Ошибка: ${result.error}`);
+        }
+    }
+
+    async function loadTeams() {
+        const response = await fetch('/api/teams/');
+        const data = await response.json();
+        const tbody = document.getElementById('teams-list-tbody');
+        tbody.innerHTML = ''; 
+        currentTeamsList = data.teams; 
+
+        if (data.teams && data.teams.length > 0) {
+            data.teams.forEach(team => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${team.work_name}</td>
+                    <td>${team.child_name}</td>
+                    <td>${team.school_class}</td>
+                    <td>${team.league}</td>
+                    <td>
+                        <button style="color:#007bff; background:none; border:none; cursor:pointer; margin-right: 10px;" onclick="startEditTeam(${team.id})">Изменить</button>
+                        <button style="color:red; background:none; border:none; cursor:pointer;" onclick="deleteTeam(${team.id})">Удалить</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="color: gray;">Команды пока не добавлены</td></tr>';
+        }
+    }
+
+    async function deleteTeam(teamId) {
+        if (!confirm('Вы точно хотите удалить эту команду?')) return;
+        const response = await fetch('/api/teams/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ team_id: teamId })
+        });
+        if(response.ok) loadTeams(); 
+        else alert('Ошибка удаления');
+    }
+
+    async function uploadCsv(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/teams/upload-csv/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData
+        });
+        
+        const result = await response.json();
+        if(response.ok) {
+            alert(result.message);
+            loadTeams(); 
+            location.reload(); 
+        } else {
+            alert(`Ошибка: ${result.error}`);
+        }
+        inputElement.value = ''; 
+    }
+
+
+    // --- ЛОГИКА РАСПИСАНИЯ И БОЕВ ---
+
+    async function updateSchLeagues() {
+        const sClass = document.getElementById('sch-class').value;
+        const leagueSelect = document.getElementById('sch-league');
+        leagueSelect.innerHTML = '<option value="">-- Лига --</option>';
+        if (!sClass) return;
+        const res = await fetch(`/api/fights/leagues/?school_class=${sClass}`);
+        const data = await res.json();
+        data.leagues.forEach(l => leagueSelect.innerHTML += `<option value="${l}">${l}</option>`);
+        updateSchTeams();
+    }
+
+    async function updateSchTeams() {
+        const sClass = document.getElementById('sch-class').value;
+        const league = document.getElementById('sch-league').value;
+        const sel1 = document.getElementById('sch-team1'), sel2 = document.getElementById('sch-team2');
+        sel1.innerHTML = '<option value="">-- Команда 1 --</option>'; sel2.innerHTML = '<option value="">-- Команда 2 --</option>';
+        if (!sClass) return;
+        const res = await fetch(`/api/fights/teams/?school_class=${sClass}&league=${league}`);
+        const data = await res.json();
+        data.teams.forEach(t => {
+            sel1.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+            sel2.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+        });
+    }
+
+    async function submitSchedule() {
+        const payload = {
+            tour: document.getElementById('sch-tour').value,
+            team1_id: document.getElementById('sch-team1').value,
+            team2_id: document.getElementById('sch-team2').value,
+            judge_first: document.getElementById('sch-judge1').value,
+            judge_second: document.getElementById('sch-judge2').value,
+            place: document.getElementById('sch-place').value,
+            solution_place: document.getElementById('sch-sol-place').value,
+            value_day: document.getElementById('sch-date').value,
+            fight_time: document.getElementById('sch-time').value,
+            solution_time: document.getElementById('sch-sol-time').value
+        };
+
+        if (!payload.tour || !payload.team1_id || !payload.team2_id || !payload.judge_first || !payload.place || !payload.value_day || !payload.fight_time) {
+            return alert('Заполните все основные поля (2-й судья не обязателен)!');
+        }
+
+        const btn = event.target;
+        const oldText = btn.innerText;
+
+        const response = await fetch('/api/schedule/add/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(payload)
+        });
+        
+        const res = await response.json();
+        if(response.ok) {
+            document.getElementById('sch-team1').value = '';
+            document.getElementById('sch-team2').value = '';
+            document.getElementById('sch-judge1').value = '';
+            document.getElementById('sch-judge2').value = '';
+            document.getElementById('sch-place').value = '';
+            document.getElementById('sch-sol-place').value = '';
+            document.getElementById('sch-time').value = '';
+            document.getElementById('sch-sol-time').value = '';
+            
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) loadScheduleTable(currentClassBtn.innerText.replace(/\D/g, ''));
+
+            btn.innerText = '✅ Добавлено!';
+            btn.style.backgroundColor = '#17a2b8';
+            
+            setTimeout(() => {
+                btn.innerText = oldText;
+                btn.style.backgroundColor = ''; 
+            }, 1500);
+
+        } else {
+            alert(`Ошибка: ${res.error}`);
+        }
+
+        loadScheduledFights();
+    }
+
+    async function updateFightLeagues() {
+        const sClass = document.getElementById('fight-class').value;
+        const leagueSelect = document.getElementById('fight-league');
+        leagueSelect.innerHTML = '<option value="">-- Лига --</option>';
+
+        if (!sClass) return;
+
+        const response = await fetch(`/api/fights/leagues/?school_class=${sClass}`);
+        const data = await response.json();
+
+        data.leagues.forEach(l => {
+            leagueSelect.innerHTML += `<option value="${l}">${l}</option>`;
+        });
+        
+        updateFightTeams(); 
+    }
+
+    async function updateFightTeams() {
+        const sClass = document.getElementById('fight-class').value;
+        const league = document.getElementById('fight-league').value;
+        
+        if (!sClass) return; 
+
+        const response = await fetch(`/api/fights/teams/?school_class=${sClass}&league=${league}`);
+        const data = await response.json();
+        
+        const select1 = document.getElementById('fight-team1');
+        const select2 = document.getElementById('fight-team2');
+        
+        select1.innerHTML = '<option value="">-- Команда 1 --</option>';
+        select2.innerHTML = '<option value="">-- Команда 2 --</option>';
+
+        data.teams.forEach(t => {
+            select1.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+            select2.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+        });
+    }
+
+    async function submitFightResult() {
+        const payload = {
+            team1_id: document.getElementById('fight-team1').value,
+            team2_id: document.getElementById('fight-team2').value,
+            points1: document.getElementById('fight-points1').value,
+            points2: document.getElementById('fight-points2').value,
+            tour: document.getElementById('fight-tour').value 
+        };
+
+        if (!payload.team1_id || !payload.team2_id || payload.points1 === '' || payload.points2 === '' || !payload.tour) {
+            return alert('Заполните все поля, включая тур!');
+        }
+
+        const response = await fetch('/api/fights/add_result/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(payload)
+        });
+        
+        const res = await response.json();
+        if(response.ok) {
+            alert('Счет сохранен!');
+            document.getElementById('fight-points1').value = '';
+            document.getElementById('fight-points2').value = '';
+            
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) {
+                const c = currentClassBtn.innerText.replace(/\D/g, '');
+                loadClassData(c, currentClassBtn); 
+            }
+            loadFights(); 
+        } else alert(`Ошибка: ${res.error}`);
+    }
+
+    async function loadFights() {
+        const response = await fetch('/api/fights/list/');
+        const data = await response.json();
+        const tbody = document.getElementById('fights-list-tbody');
+        tbody.innerHTML = ''; 
+
+        if (data.fights && data.fights.length > 0) {
+            data.fights.forEach(f => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${f.class}</td>
+                    <td>${f.tour}</td>
+                    <td>${f.match_name}</td>
+                    <td><b>${f.score}</b></td>
+                    <td><button style="color:orange; background:none; border:none; cursor:pointer;" onclick="removeFightResult(${f.id})">Удалить результат</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="color: gray;">Бои пока не добавлены</td></tr>';
+        }
+    }
+
+    async function deleteFight(fightId) {
+        if (!confirm('Удалить этот бой? (Очки команд будут пересчитаны обратно)')) return;
+        
+        const response = await fetch('/api/fights/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ fight_id: fightId })
+        });
+        
+        if(response.ok) {
+            loadFights();
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) {
+                const c = currentClassBtn.innerText.replace(/\D/g, '');
+                loadClassData(c, currentClassBtn); 
+            }
+        }
+        else alert('Ошибка при удалении');
+    }
+
+    async function loadScheduleTable(schoolClass) {
+        const response = await fetch(`/api/schedule/list/?school_class=${schoolClass}`);
+        const data = await response.json();
+        const container = document.getElementById('tab-schedule');
+        
+        if (!data.schedule || data.schedule.length === 0) {
+            container.innerHTML = '<h3>В этом классе пока нет запланированных боев</h3>';
+            return;
+        }
+
+        let html = `<h3>Расписание (Тур ${data.schedule[0].tour})</h3>`;
+        html += `<table class="data-table">`;
+        html += `<thead><tr><th>Лига</th><th>Команды</th><th>Первый судья</th><th>Второй судья</th><th>Бой (Место/Время)</th><th>Разбор (Место/Время)</th><th>Счет</th></tr></thead><tbody>`;
+        
+        data.schedule.forEach(f => {
+            html += `<tr>
+                <td>${f.league}</td>
+                <td style="font-weight: bold;">${f.teams}</td>
+                <td>${f.j1}</td>
+                <td>${f.j2}</td>
+                <td>${f.fight_place}</td>
+                <td>${f.sol_place}</td>
+                <td style="font-size: 16px;">${f.score}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    }
+
+
+    // --- ЛОГИКА ОЛИМПИАДЫ ---
+
+    async function updateOlyLeagues() {
+        const sClass = document.getElementById('oly-class').value;
+        const leagueSelect = document.getElementById('oly-league');
+        leagueSelect.innerHTML = '<option value="">-- Лига --</option>';
+        if (!sClass) return;
+        const response = await fetch(`/api/fights/leagues/?school_class=${sClass}`);
+        const data = await response.json();
+        data.leagues.forEach(l => leagueSelect.innerHTML += `<option value="${l}">${l}</option>`);
+        updateOlyTeams();
+    }
+
+    async function updateOlyTeams() {
+        const sClass = document.getElementById('oly-class').value;
+        const league = document.getElementById('oly-league').value;
+        const select = document.getElementById('oly-team');
+        select.innerHTML = '<option value="">-- Команда --</option>';
+        if (!sClass) return;
+        const response = await fetch(`/api/fights/teams/?school_class=${sClass}&league=${league}`);
+        const data = await response.json();
+        data.teams.forEach(t => select.innerHTML += `<option value="${t.id}">${t.name}</option>`);
+    }
+
+    async function submitOlympiad() {
+        const payload = {
+            team_id: document.getElementById('oly-team').value,
+            plus_count: document.getElementById('oly-plus').value,
+            minus_count: document.getElementById('oly-minus').value
+        };
+
+        if (!payload.team_id || payload.plus_count === '' || payload.minus_count === '') {
+            return alert('Выберите команду и введите количество плюсов и минусов!');
+        }
+
+        const response = await fetch('/api/olympiad/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(payload)
+        });
+        
+        if(response.ok) {
+            document.getElementById('oly-plus').value = '';
+            document.getElementById('oly-minus').value = '';
+            
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) loadOlympiadTable(currentClassBtn.innerText.replace(/\D/g, ''));
+        } else {
+            alert('Ошибка сохранения');
+        }
+    }
+
+    async function loadOlympiadTable(schoolClass) {
+        const response = await fetch(`/api/olympiad/list/?school_class=${schoolClass}`);
+        const data = await response.json();
+        const container = document.getElementById('tab-olympiad');
+        container.innerHTML = '';
+
+        if (!data.teams || data.teams.length === 0) {
+            container.innerHTML = '<h3>Нет данных по этому классу</h3>';
+            return;
+        }
+
+        let html = `<table class="data-table" style="margin-top: 20px;">`;
+        html += `<thead><tr><th>Команда</th><th>Лига</th><th style="color: green;">Плюсы (+)</th><th style="color: red;">Минусы (-)</th></tr></thead><tbody>`;
+        
+        data.teams.forEach(t => {
+            html += `<tr>
+                <td style="text-align: left; font-weight: bold;">${t.name}</td>
+                <td>${t.league}</td>
+                <td style="font-weight: bold; color: green; font-size: 16px;">${t.plus_count}</td>
+                <td style="font-weight: bold; color: red; font-size: 16px;">${t.minus_count}</td>
+            </tr>`;
+        });
+        
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    }
+
+    // Загрузка запланированных боев (в модалку Расписания)
+    async function loadScheduledFights() {
+        const response = await fetch('/api/schedule/list_unended/');
+        const data = await response.json();
+        const tbody = document.getElementById('scheduled-fights-tbody');
+        tbody.innerHTML = ''; 
+
+        if (data.fights && data.fights.length > 0) {
+            data.fights.forEach(f => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${f.class}</td>
+                    <td>${f.tour}</td>
+                    <td>${f.match_name}</td>
+                    <td>${f.time_place}</td>
+                    <td><button style="color:red; background:none; border:none; cursor:pointer;" onclick="deleteScheduledFight(${f.id})">Удалить бой</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="color: gray;">Запланированных боев пока нет</td></tr>';
+        }
+    }
+
+    // Полное удаление боя из расписания
+    async function deleteScheduledFight(fightId) {
+        if (!confirm('Полностью удалить этот бой из расписания?')) return;
+        const response = await fetch('/api/fights/delete/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ fight_id: fightId })
+        });
+        if(response.ok) {
+            loadScheduledFights();
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) loadScheduleTable(currentClassBtn.innerText.replace(/\D/g, ''));
+        } else alert('Ошибка при удалении');
+    }
+
+    // Отмена результатов (сброс счета)
+    async function removeFightResult(fightId) {
+        if (!confirm('Отменить результаты этого боя? Очки команд будут пересчитаны, а бой вернется в статус "Не окончен".')) return;
+        
+        const response = await fetch('/api/fights/remove_result/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ fight_id: fightId })
+        });
+        
+        if(response.ok) {
+            loadFights(); // Обновляем таблицу в текущей модалке
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) {
+                const c = currentClassBtn.innerText.replace(/\D/g, '');
+                loadClassData(c, currentClassBtn); // Обновляем шахматку
+                loadScheduleTable(c); // Обновляем расписание
+            }
+        } else alert('Ошибка при отмене результатов');
+    }
+
+    async function uploadScheduleCsv(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/schedule/upload-csv/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData
+        });
+        
+        const result = await response.json();
+        if(response.ok) {
+            alert(result.message);
+            loadScheduledFights(); // Обновляем таблицу запланированных боев
+            
+            // Обновляем общую страницу, если выбран класс
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) {
+                loadScheduleTable(currentClassBtn.innerText.replace(/\D/g, ''));
+            }
+        } else {
+            alert(`Ошибка: ${result.error}`);
+        }
+        
+        inputElement.value = '';
+    }
+
+    async function uploadOlympiadCsv(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/olympiad/upload-csv/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData
+        });
+        
+        const result = await response.json();
+        if(response.ok) {
+            alert(result.message);
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) loadOlympiadTable(currentClassBtn.innerText.replace(/\D/g, ''));
+        } else {
+            alert(`Ошибка: ${result.error}`);
+        }
+        inputElement.value = ''; 
+    }
+
+    async function uploadMatchesCsv(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/matches/upload-csv/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData
+        });
+        
+        const result = await response.json();
+        if(response.ok) {
+            alert(result.message);
+            loadFights(); // Обновляем список боев в модалке
+            
+            // Обновляем шахматку на фоне
+            const currentClassBtn = document.querySelector('.sidebar button.active');
+            if (currentClassBtn) {
+                loadSummaryTable(currentClassBtn.innerText.replace(/\D/g, ''));
+            }
+        } else {
+            alert(`Ошибка: ${result.error}`);
+        }
+        inputElement.value = ''; 
+    }
+
+    // Автоматический запуск при открытии страницы
+    document.addEventListener("DOMContentLoaded", function() {
+        const firstClassBtn = document.querySelector('#class-buttons button');
+        if (firstClassBtn) {
+            firstClassBtn.click();
+        }
+    });
+    
+</script>
+{% endblock %}
