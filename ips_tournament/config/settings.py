@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -120,6 +121,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 STATIC_ROOT = os.path.join(BASE_DIR, 'static_root')
 
 AUTH_USER_MODEL = 'core.User'
@@ -130,3 +134,10 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://math-open.ru',
+    'https://www.math-open.ru',
+]
